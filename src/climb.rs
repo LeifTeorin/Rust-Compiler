@@ -86,6 +86,7 @@ fn to_vec(e: Expr) -> Vec<ExprItems> {
             }
         }
         // not yet implemented
+        UnOp(uop, e) => unimplemented!(),
         _ => unimplemented!(),
     }
 }

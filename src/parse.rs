@@ -14,7 +14,15 @@ use syn::{
 
 impl Parse for Literal {
     fn parse(input: ParseStream) -> Result<Self> {
-        todo!("not implemented {:?}", input)
+        // Use the "built in" syn parser for literals
+        let l: syn::Lit = input.parse()?;
+
+        Ok(match l {
+            syn::Lit::Int(l) => Literal::Int(l.base10_parse().unwrap()),
+            syn::Lit::Bool(b) => Literal::Bool(b.value),
+            // for now only Int and Bool are covered
+            _ => unimplemented!(),
+        })
     }
 }
 
@@ -48,14 +56,62 @@ fn parse_lit_fail() {
 
 impl Parse for Op {
     fn parse(input: ParseStream) -> Result<Self> {
-        todo!("not implemented {:?}", input)
+        // check if next token is `+`
+        if input.peek(Token![+]) {
+            // consume the token
+            let _: Token![+] = input.parse()?;
+            Ok(Op::Add)
+        } else if input.peek(Token![-]) {
+            let _: Token![-] = input.parse()?;
+            Ok(Op::Sub)
+        } else if input.peek(Token![*]) {
+            let _: Token![*] = input.parse()?;
+            Ok(Op::Mul)
+        } else if input.peek(Token![/]) {
+            let _: Token![/] = input.parse()?;
+            Ok(Op::Div)
+        } else if input.peek(Token![&&]) {
+            let _: Token![&&] = input.parse()?;
+            Ok(Op::And)
+        } else if input.peek(Token![||]) {
+            let _: Token![||] = input.parse()?;
+            Ok(Op::Or)
+        } else if input.peek(Token![==]) {
+            let _: Token![==] = input.parse()?;
+            Ok(Op::Eq)
+        } else if input.peek(Token![>]) {
+            let _: Token![>] = input.parse()?;
+            Ok(Op::Gt)
+        } else if input.peek(Token![<]) {
+            let _: Token![<] = input.parse()?;
+            Ok(Op::Lt)
+        } else {
+            // to explicitly create an error at the current position
+            input.step(|cursor| Err(cursor.error("expected operator")))
+        }
     }
 }
 
 impl Parse for UnOp {
     fn parse(input: ParseStream) -> Result<Self> {
-        todo!("not implemented {:?}", input)
+        if input.peek(Token![!]) {
+            let _: Token![!] = input.parse()?;
+            Ok(UnOp::Bang)
+        }else if input.peek(Token![&]) {
+            let _: Token![&] = input.parse()?;
+            Ok(UnOp::Ref)
+        }else if input.peek(Token![*]) {
+            let _: Token![*] = input.parse()?;
+            Ok(UnOp::DeRef)
+        }else if input.peek(syn::token::Mut) {
+            let _: syn::token::Mut = input.parse()?;
+            Ok(UnOp::Mut)
+        }else {
+            // to explicitly create an error at the current position
+            input.step(|cursor| Err(cursor.error("expected operator")))
+        }
     }
+
 }
 
 #[test]
@@ -86,7 +142,51 @@ fn parse_op_fail() {
 impl Parse for Expr {
     // Use a custom parser for expressions
     fn parse(input: ParseStream) -> Result<Self> {
-        todo!("not implemented {:?}", input)
+        let left = if input.peek(syn::token::Paren) {
+            // we have a left (Expr), e.g., "(1 + 2)"
+            let content;
+            let _ = syn::parenthesized!(content in input);
+            let e: Expr = content.parse()?;
+            Expr::Par(Box::new(e))
+        } else if input.peek(syn::Ident) {
+            // we have a left Ident, e.g, "my_best_ident_ever"
+            // this could also be a function call, e.g "myFn(args)"
+            let ident: syn::Ident = input.parse()?;
+            if input.peek(syn::token::Paren){
+                let content;
+                let _ = syn::parenthesized!(content in input);
+                let mut args: Vec<Expr> = vec![];
+                while !content.is_empty(){
+                    let param: Expr = content.parse()?;
+                    args.push(param);
+                    if content.peek(syn::token::Comma){
+                        let _comma: syn::token::Comma = content.parse()?;
+                    }
+                }
+                
+                Expr::Call(ident.to_string(), Arguments{0: args})
+            }else{
+                Expr::Ident(ident.to_string())
+            }
+        } else if input.peek(syn::token::If) {
+            // we have a left conditional, e.g., "if true {1} else {2}" or
+            // if true { 5 }
+            let IfThenOptElse(c, t, e) = input.parse()?;
+            Expr::IfThenElse(Box::new(c), t, e)
+        } else {
+            // else we require a left literal
+            let left: Literal = input.parse()?;
+            left.into()
+        };
+        // now check if right is an Op Expr
+        match input.parse::<Op>() {
+            Ok(op) => {
+                let right: Expr = input.parse()?;
+                Ok(Expr::bin_op(op, left, right))
+            }
+            // no op, just return the left, no error
+            Err(_) => Ok(left),
+        }
     }
 }
 
@@ -101,7 +201,29 @@ struct IfThenOptElse(Expr, Block, Option<Block>);
 
 impl Parse for IfThenOptElse {
     fn parse(input: ParseStream) -> Result<IfThenOptElse> {
-        todo!("not implemented {:?}", input)
+        let _if: syn::token::If = input.parse()?;
+        let cond_expr: Expr = input.parse()?;
+        let then_block: Block = input.parse()?;
+
+        if input.peek(syn::token::Else) {
+            let _else: syn::token::Else = input.parse()?;
+
+            let else_block: Block;
+
+            if input.peek(syn::token::If) {
+                else_block = Block {
+                    statements: vec![input.parse()?],
+                    semi: false,
+                };
+            } else {
+                else_block = input.parse()?;
+            }
+
+
+            Ok(IfThenOptElse(cond_expr, then_block, Some(else_block)))
+        } else {
+            Ok(IfThenOptElse(cond_expr, then_block, None))
+        }
     }
 }
 

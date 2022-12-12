@@ -61,7 +61,13 @@ impl fmt::Display for Op {
 
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        let s = match *self {
+            Literal::Bool(b) => b.to_string(),
+            Literal::Int(i) => i.to_string(),
+            Literal::Unit => "()".to_string(),
+            Literal::String(s ) => todo!(),
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -77,7 +83,14 @@ fn display_literal() {
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        let s = match self {
+            Type::I32 => "i32",
+            Type::Bool => "bool",
+            Type::Unit => "()",
+            Type::String => "String",
+            Type::Ref(e) => "",
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -97,13 +110,46 @@ impl fmt::Display for UnOp {
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        let s = match self {
+            Expr::Ident(a) => a.to_owned(),
+            Expr::Lit(l) => format!("{}", l),
+            Expr::BinOp(op, l, r) => format!("{} {} {}", l, op, r),
+            Expr::Par(e) => format!("({}) ", e),
+            Expr::IfThenElse(case, block, option) => {
+                if option.is_none() {
+                    format!("if {} then {}", case, block)
+                } else {
+                    format!("if {} then {} else {}", case, block, option.as_ref().unwrap())
+                }
+            },
+            Expr::Call(func, args) => {
+                let mut params = String::new();
+                let mut iter_param = args.0.iter().peekable();
+                for param in iter_param.clone(){
+                    params.push_str(&param.to_string());
+                    if iter_param.peek().is_some() {
+                        params.push_str(", ");
+                    }
+                }
+                format!("{}({})", func, params)
+            },
+            Expr::Block(bl) => todo!(),
+            Expr::UnOp(uop, e) => todo!(),
+        };
+        write!(f, "{}", s)
     }
 }
 
 impl fmt::Display for Block {
+    #[allow(unused_variables)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        let mut s = String::new();
+        s.push_str("\n");
+        for stmnt in &self.statements {
+            s.push_str(&stmnt.to_string())
+        }
+//        s.push_str("\n");
+        write!(f, "{{{}}}", s)
     }
 }
 
@@ -115,7 +161,12 @@ impl fmt::Display for Mutable {
 
 impl fmt::Display for Parameter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        let mut s: String = if self.mutable.0{
+            format!("{}: mut {}", self.id, self.ty)
+        }else{
+            format!("{}: {}", self.id, self.ty)
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -145,7 +196,41 @@ impl fmt::Display for Prog {
 
 impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        let mut s = match self{
+            Statement::Let(m, Ex1, typ, Ex2) => {
+                let t = match typ {
+                    Some(t) => format!(": {}", t),
+                    None => "".to_string(),
+                };
+                let re = match Ex2 {
+                    Some(re) => format!(" = {}", Ex2.as_ref().unwrap()),
+                    None => "".to_string(),
+                };
+
+                format!("let {}{}{};", Ex1, t, re)
+            },
+            Statement::Assign(Ex1, Ex2) => format!("{} = {};", Ex1, Ex2),
+            Statement::Expr(ex) => ex.to_string(),
+            Statement::While(case, block) => format!("while {} do {}", case, block),
+            Statement::Fn(decl) => {
+                let mut params = String::new();
+                let mut iter_param = decl.parameters.0.iter().peekable();
+                for param in iter_param.clone(){
+                    params.push_str(&param.to_string());
+                    if iter_param.peek().is_some() {
+                        params.push_str(", ");
+                    }
+                }
+                if decl.ty.is_some(){
+                    format!("fn {}({}) -> {} {}", decl.id, params, decl.ty.as_ref().unwrap(), decl.body)
+                }else {
+                    format!("fn {}({}) -> {}", decl.id, params, decl.body)
+                }
+                
+            },
+        };
+
+        write!(f, "{}\n", s)
     }
 }
 
