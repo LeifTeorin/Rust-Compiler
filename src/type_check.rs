@@ -149,31 +149,37 @@ impl Eval<Ty> for Statement{
             Statement::Let(m, id, t, e) => {
                 // let a: i32 = 5 + 2
                 // for now just accept an ident
+                let e_val: Ty;
+                if e.is_some(){
+                    e_val = e.as_ref().unwrap().eval(env)?.0;
+                }else{
+                    e_val = Ty::Lit(Type::Unit);
+                }
                 match (e, t) {
                     (Some(e), Some(t)) => {
-                        if unify(e.eval(env)?.0,Ty::Lit(*t), Ty::Lit(*t)).is_err() {
+                        if unify(e_val.clone(),Ty::Lit((*t).clone()), Ty::Lit((*t).clone())).is_err() {
                             return Err("Missmatching types in let-statement".to_string())
                         }
                         if m.0 {
-                            env.v.alloc(&id, Ty::Mut(Box::new(e.eval(env)?.0)));
+                            env.v.alloc(&id, Ty::Mut(Box::new(e_val.clone())));
                         }else{
-                            env.v.alloc(&id, e.eval(env)?.0);
+                            env.v.alloc(&id, e_val);
                         }
                         
                     },
                     (None, Some(t)) => {
                         if m.0 {
-                            env.v.alloc(&id, Ty::Mut(Box::new(Ty::Lit(*t))));
+                            env.v.alloc(&id, Ty::Mut(Box::new(Ty::Lit((*t).clone()))));
                         }else{
-                            env.v.alloc(&id, Ty::Lit(*t));
+                            env.v.alloc(&id, Ty::Lit((*t).clone()));
                         }
                         
                     },
                     (Some(e), None) => {
                         if m.0 {
-                            env.v.alloc(&id, Ty::Mut(Box::new(e.eval(env)?.0)));
+                            env.v.alloc(&id, Ty::Mut(Box::new(e_val.clone())));
                         }else{
-                            env.v.alloc(&id, e.eval(env)?.0);
+                            env.v.alloc(&id, e_val.clone());
                         }
                     },
                     (None, None) => {
@@ -202,6 +208,7 @@ impl Eval<Ty> for Statement{
                 if env.v.get(&id.to_string()).is_none() { // the variable has not been declared
                     return Err("Undeclared variable".to_string())
                 }
+                let id_typ = id.eval(env)?.0;
                 let m = id.eval(env)?.1;
                 let ty: Option<Ty> = env.v.get(&id.to_string());
                 match env.v.de_ref(m.unwrap()) {
@@ -210,16 +217,18 @@ impl Eval<Ty> for Statement{
                     Ty::Lit(Type::Ref(_)) => return Err("Can't assign to Reference".to_string()),
                     _ => return Err("Can't assign to none mutable".to_string())
                 }
-
-
+                let e_type = e.eval(env)?;
                 match ty.unwrap() {
-                    Ty::Lit(Type::Unit) => {
-                        Statement::Let(id, Some((e.clone().eval(env)?), Some(e))).eval(env)?;
+                    Ty::Lit(Type::Unit) => { // if it is a unit-type we can change it's type in our environment
+                        match id {
+                            Expr::Ident(key) => {env.v.alloc(&key, e_type.0);},
+                            _ => unreachable!()
+                        }
                     },
                     _ => {
                         let res1 = id.eval(env);
                         let res2 = e.eval(env);
-                        if res1.is_err() || res2.is_err() || unify(res1?.0, res2?.0, res1?.0).is_err() {
+                        if res1.is_err() || res2.is_err() || unify(res1.clone()?.0, res2?.0, res1.clone()?.0).is_err() {
                             return Err("Error in assignment".to_string())
                         }
                     },
@@ -251,7 +260,7 @@ impl Eval<Ty> for Block {
 
         #[allow(unused_variables)]
         let mut return_ty = (Ty::Lit(Type::Unit), None);
-        for stmt in self.statements {
+        for stmt in &self.statements {
             // update the return type for each iteration
             return_ty = stmt.eval(env)?;
         }
@@ -267,17 +276,19 @@ impl Eval<Ty> for Block {
 
 impl Eval<Ty> for FnDeclaration {
     fn eval(&self, env: &mut Env<Ty>) -> Result<(Ty, Option<Ref>), Error> {
-        env.v.push_scope();
-        if env.f.0.contains_key(&decl.id){
-            return Err("This function-name has already been used".to_string())
+        //env.v.push_scope();
+        //env.v.pop_scope();
+        if self.ty.is_none(){
+            Ok((Ty::Lit(Type::Unit), None))
+        } else {
+            Ok((Ty::Lit(self.ty.clone().unwrap()), None))
         }
-        env.f.add_functions_unique(self);
-        env.v.pop_scope();
     }
 }
 
 impl Eval<Ty> for Prog {
     fn eval(&self, env: &mut Env<Ty>) -> Result<(Ty, Option<Ref>), Error> {
+        env.f.add_functions_unique(self.0.clone());
         for func in self.0.clone(){
             func.eval(env)?;
         }

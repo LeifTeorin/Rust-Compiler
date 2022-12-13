@@ -61,7 +61,7 @@ impl fmt::Display for Op {
 
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match *self {
+        let s = match self {
             Literal::Bool(b) => b.to_string(),
             Literal::Int(i) => i.to_string(),
             Literal::Unit => "()".to_string(),
