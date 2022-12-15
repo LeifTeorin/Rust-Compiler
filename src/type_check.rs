@@ -93,7 +93,7 @@ impl Eval<Ty> for Expr {
         match self {
             Expr::Ident(id) => match env.v.get(&id) {
                 Some(t) => {
-                    Ok((get_type_from_mut(t), None))
+                    Ok((get_type_from_mut(t), env.v.get_ref(id)))
                 },
                 None => Err("variable not found".to_string()),
             },
@@ -117,17 +117,14 @@ impl Eval<Ty> for Expr {
             Expr::IfThenElse(cond, t, e) => {
                 let cond_type = cond.eval(env)?;
                 let do_type = t.eval(env)?;
-                //unify(cond_type.0, Ty::Lit(Type::Bool), Ty::Lit(Type::Bool))?;
                 if unify(cond_type.0, Ty::Lit(Type::Bool), Ty::Lit(Type::Bool)).is_err() {
                     return Err("Condition needs to be a boolean".to_string())
                 }
                 if e.is_none(){
-                    //Ok((Ty::Lit(Type::Unit), None))
                     Ok(do_type)
                 } else {
                     let else_type = e.as_ref().unwrap().eval(env)?;
                     unify(do_type.0.clone(), else_type.0.clone(), else_type.0.clone())?;
-                    //Ok((Ty::Lit(Type::Unit), None))
                     Ok(do_type)
                 }
             },
@@ -165,13 +162,23 @@ impl Eval<Ty> for Expr {
             Expr::UnOp(uop, e) => {
                 let expr = (*e.clone()).eval(env)?;
                 match uop {
-                    UnOp::Ref => match expr.0 {
-                        Ty::Lit(type_) => Ok((Ty::Lit(Type::Ref(Box::new(type_))), None)),
-                        _ => Err(format!("Expected Ty::Lit but got {:?}", expr.0))
+                    UnOp::Ref => match expr.0.clone(){
+                        Ty::Lit(type_) => {
+                            let r = if expr.1.is_none(){
+                                let new_ref = env.v.stack_val(expr.0.clone());
+                                env.v.set_ref(new_ref, expr.0);
+                                new_ref
+                            }else{
+                                expr.1.unwrap()
+                            };
+                            Ok((Ty::Lit(Type::Ref(Box::new(type_))), Some(r)))
+                        },
+                        _ => Err(format!("Expected Literal but got {:?}", expr.0))
                     },
                     UnOp::DeRef => match expr.0 {
                         Ty::Lit(Type::Ref(e)) => Ok((Ty::Lit(*e), None)),
-                        _ => Err(format!("Expected Ty::Lit but got {:?}", expr.0))
+                        Ty::Ref(r) => Ok((env.v.de_ref(r.clone()), Some(r))),
+                        _ => Err(format!("Expected Literal but got {:?}", expr.0))
                     },
                     UnOp::Bang => unify(expr.0.clone(), Ty::Lit(Type::Bool), Ty::Lit(Type::Bool)),
                     UnOp::Mut => Ok((Ty::Mut(Box::new(expr.0)), None)),
@@ -243,31 +250,22 @@ impl Eval<Ty> for Statement{
             #[allow(unused_variables)]
             Statement::Expr(e) => {
                 // the type of an Expr is returned
-                /* let mut typ = e.eval(env)?;
-                typ.0 = match typ.0 {
-                    Ty::Mut(b) => *b,
-                    _ => typ.0,
-                };
-                typ */
                 e.eval(env)?
             }
             #[allow(unused_variables)]
             Statement::Assign(id, e) => {
-                // a = 5
-                /* 
-                if env.v.get(&id.to_string()).is_none() { // the variable has not been declared
-                    return Err("Undeclared variable".to_string())
-                } 
-                */
                 let id_typ = id.eval(env)?.0;
                 let m = id.eval(env)?.1;
                 let ty: Option<Ty> = env.v.get(&id.to_string());
-                if m.is_none() {
-                    println!("inte mutable?");
-                } else{
+                if ty.is_some(){
+                    println!("{} of type: idonno", &id.to_string());
+                }
+                
+                if m.is_some() {
                     match env.v.de_ref(m.unwrap()) {
                         Ty::Mut(_) => {},
                         //Not allowed in rust
+
                         Ty::Lit(Type::Ref(_)) => return Err("Can't assign to Reference".to_string()),
                         _ => return Err("Can't assign to none mutable".to_string())
                     }
@@ -282,11 +280,6 @@ impl Eval<Ty> for Statement{
                         }
                     },
                     _ => {
-                        /* match id {
-                            Expr::Ident(key) => {env.v.alloc(&key, e_type.0);},
-                            _ => unreachable!()
-
-                        } */
                         let err = unify(id_typ, e_type.clone().0, e_type.0);
                         if err.is_err(){
                             return err
@@ -300,7 +293,6 @@ impl Eval<Ty> for Statement{
                 let cond_type = e.eval(env)?;
                 let do_type = b.eval(env);
                 if unify(cond_type.0, Ty::Lit(Type::Bool), Ty::Lit(Type::Bool)).is_ok(){
-                    //(Ty::Lit(Type::Unit), None)
                     do_type?
                 } else {
                     return Err("Your condition needs to be a boolean".to_string())
@@ -317,7 +309,6 @@ impl Eval<Ty> for Block {
     
     fn eval(&self, env: &mut Env<Ty>) -> Result<(Ty, Option<Ref>), Error> {
         env.v.push_scope();
-//        env.f.push_scope();
         #[allow(unused_variables)]
         let mut return_ty = (Ty::Lit(Type::Unit), None);
         for stmt in &self.statements {
@@ -335,8 +326,6 @@ impl Eval<Ty> for Block {
 
 impl Eval<Ty> for FnDeclaration {
     fn eval(&self, env: &mut Env<Ty>) -> Result<(Ty, Option<Ref>), Error> {
-        //env.v.push_scope();
-        //env.v.pop_scope();
         let res = env.f.add_functions_unique(vec![self.clone()]);
         if self.ty.is_none(){
             Ok((Ty::Lit(Type::Unit), None))
@@ -348,7 +337,6 @@ impl Eval<Ty> for FnDeclaration {
 
 impl Eval<Ty> for Prog {
     fn eval(&self, env: &mut Env<Ty>) -> Result<(Ty, Option<Ref>), Error> {
-//        env.f.add_functions_unique(self.0.clone());
         for func in self.0.clone(){
             func.eval(env)?;
         }
@@ -467,6 +455,21 @@ mod tests {
         assert_eq!(v.is_err(), true);
     }
 
+    
+    #[test]
+    fn test_non_mut_err() {
+        let v = parse_test::<Block, Ty>(
+            "
+        {
+            let a: i32 = 1;
+            a = 2;
+        }
+        ",
+        );
+
+        assert_eq!(v.is_err(), true);
+    }
+
     #[test]
     fn test_ref_deref_indirect() {
         let v = parse_test::<Block, Ty>(
@@ -555,8 +558,8 @@ mod tests {
         let v = parse_test::<Block, Ty>(
             "
         {
-            let a = 2;
-            let b = 1;
+            let mut a = 2;
+            let mut b = 1;
             while a > 0 {
                 a = a - 1;
                 b = b + 1;
@@ -573,7 +576,7 @@ mod tests {
         let v = parse_test::<Block, Ty>(
             "
         {
-            let a = 2;
+            let mut a = 2;
             let b = 0;
             let c = &b;
             while a > 0 {
@@ -769,10 +772,10 @@ mod tests {
             "
         {
             let a: i32 = 1 + 2; // a == 3
-            let a: i32 = 2 + a; // a == 5
+            let mut a: i32 = 2 + a; // a == 5
             if true {
                 a = a - 1;      // outer a == 4
-                let a: i32 = 0; // inner a == 0
+                let mut a: i32 = 0; // inner a == 0
                 a = a + 1       // inner a == 1
             } else {
                 a = a - 1

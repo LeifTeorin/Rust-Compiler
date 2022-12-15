@@ -26,6 +26,7 @@ impl Val {
     pub fn get_int(&self) -> Result<i32, Error> {
         match self {
             Val::Lit(Literal::Int(i)) => Ok(*i),
+            Val::Mut(b) => (*b).get_int(),
             _ => Err(format!("cannot get integer from {:?}", self)),
         }
     }
@@ -36,7 +37,6 @@ impl Val {
             _ => Err(format!("cannot get string from {:?}", self)),
         }
     }
-
 }
 
 // Helper for Op
@@ -67,14 +67,12 @@ fn get_val_from_mut(input: Val) -> Val {
 
 impl Eval<Val> for Expr {
     fn eval(&self, env: &mut Env<Val>) -> Result<(Val, Option<Ref>), Error> {
-//        let ex = climb(self.clone());
         match self {
             Expr::Ident(id) => 
             match env.v.get(&id){
                 Some(t) => Ok((get_val_from_mut(t), env.v.get_ref(&id))),
                 None => Err("Variable not found".to_string()),
             },
-//            Expr::Lit(literal) => Ok((Val::Lit(literal.clone()), Some(env.v.stack_val(Val::Lit(literal.clone()))))),
             Expr::Lit(l) => Ok((Val::Lit(l.clone()), None)),
             Expr::BinOp(op, left, right) => Ok((op.eval(left.eval(env)?.0, right.eval(env)?.0)?, None)),
             Expr::Par(e) => e.eval(env),
@@ -145,22 +143,16 @@ impl Eval<Val> for Block {
                     let id_val = id.eval(env)?;
                     let ex = e.eval(env)?;
                     
-                    /* let err = env.v.get(&id.to_string());
-                    if err.is_none(){
-                        return Err("That variable has not been declared".to_string());
-                    } */
-                    if let Some(r) = id_val.1 {
-                        env.v.set_ref(r, ex.0)
-                    } else {
-                        return Err("Expected ref in assign".to_string());
+                    let m = id_val.1;
+                    
+                    if m.is_some(){
+                        match env.v.de_ref(m.unwrap()) {
+                            Val::Mut(_) => env.v.set_ref(id_val.1.unwrap(), Val::Mut(Box::new(ex.0))),
+                            Val::Ref(re) => env.v.set_ref(re, ex.0),
+                            Val::UnInit => env.v.set_ref(id_val.1.unwrap(), ex.0),
+                            Val::Lit(_) => return Err("That variable is immutable and cannot be assigned a value".to_string()),
+                        }
                     }
-                    /* match id_val.0 {
-                        Val::Mut(_) => env.v.set_ref(id_val.1.unwrap(), Val::Mut(Box::new(ex.0))),
-                        Val::Ref(re) => env.v.set_ref(re, ex.0),
-                        Val::UnInit => env.v.set_ref(id_val.1.unwrap(), ex.0),
-                        Val::Lit(_) => return Err("That variable is immutable and cannot be assigned a value".to_string()),
-                    } */
-                
                 },
                 Statement::Expr(e) => {
                     return_val = e.eval(env)?.0;
@@ -244,19 +236,6 @@ impl Eval<Val> for Prog {
             }
             func.eval(env)?;
         }
-        
-        /* 
-        match mainfunc {
-            Some(f) => (**f).0.eval(env),
-            None => Err("Warning, function 'main' not found")?,
-        }
-        */
-        /* 
-        match env.f.0.get("main") {
-            Some(_f) => Err("Ok")?,
-            None => Err("Warning, function 'main' not found")?,
-        } 
-        */
         if mainfunc.is_none(){
             Err("Warning, function 'main' not found".to_string())
         }else{
@@ -314,6 +293,19 @@ mod tests {
     }",
         );
         assert_eq!(v.unwrap().get_int().unwrap(), 3);
+    }
+
+    #[test]
+    fn test_block_assign_fail() {
+        let v = parse_test::<Block, Val>(
+            "
+    {
+        let a: i32 = 1;
+        a = a + 2;
+        a
+    }",
+        );
+        assert_eq!(v.is_err(), true);
     }
 
     #[test]
@@ -380,7 +372,7 @@ mod tests {
         let v = parse_test::<Block, Val>(
             "
     {
-        let a = 1;
+        let mut a = 1;
         let b = &a;
         *b = 7;
         a
@@ -396,8 +388,8 @@ mod tests {
         let v = parse_test::<Block, Val>(
             "
     {
-        let a = 2;
-        let b = 0;
+        let mut a = 2;
+        let mut b = 0;
         while a > 0 {
             a = a - 1;
             b = b + 1;
@@ -415,9 +407,9 @@ mod tests {
         let v = parse_test::<Block, Val>(
             "
     {
-        let a = 2;
-        let b = 0;
-        let c = &b;
+        let mut a = 2;
+        let mut b = 0;
+        let c = &mut b;
         while a > 0 {
             a = a - 1;
             *c = (*c) + 1;
@@ -435,8 +427,8 @@ mod tests {
         let v = parse_test::<Block, Val>(
             "
     {
-        let a = 2;
-        let b = 0;
+        let mut a = 2;
+        let mut b = 0;
         let c = &b;
         let d = &a;
         
@@ -499,7 +491,7 @@ mod tests {
         let v = parse_test::<Block, Val>(
             "
     {
-        let a = 1;
+        let mut a = 1;
         { 
             let b = &a;
             *b = 2;
@@ -517,7 +509,7 @@ mod tests {
         let v = parse_test::<Block, Val>(
             "
     {
-        let a = 6;
+        let mut a = 6;
         let b = { 
             let b = &a;
             *b = (*b) + 1;
@@ -568,10 +560,10 @@ mod tests {
             "
         {
             let a: i32 = 1 + 2; // a == 3
-            let a: i32 = 2 + a; // a == 5
+            let mut a: i32 = 2 + a; // a == 5
             if true {
                 a = a - 1;      // outer a == 4
-                let a: i32 = 0; // inner a == 0
+                let mut a: i32 = 0; // inner a == 0
                 a = a + 1       // inner a == 1
             } else {
                 a = a - 1
@@ -590,6 +582,19 @@ mod tests {
         {
             let a = &1;
             *a
+        }
+        ",
+        );
+        assert_eq!(v.unwrap().get_int().unwrap(), 1);
+    }
+    #[test]
+    fn test_ref_2() {
+        let v = parse_test::<Block, Val>(
+            "
+        {
+            let a = &1;
+            let b = &a;
+            **b
         }
         ",
         );
