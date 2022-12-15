@@ -1,7 +1,9 @@
-use crate::ast::{Block, Expr, FnDeclaration, Literal, Op, Prog, Statement};
+use crate::ast::{Block, Expr, FnDeclaration, Literal, Op, Prog, Statement, UnOp};
+use crate::climb::climb;
 use crate::common::Eval;
 use crate::env::{Env, Ref};
 use crate::error::Error;
+use crate::intrinsics::vm_println;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Val {
@@ -56,66 +58,62 @@ impl Op {
     }
 }
 
+fn get_val_from_mut(input: Val) -> Val {
+    match input {
+        Val::Mut(b) => *b,
+        _ => input
+    }
+}
+
 impl Eval<Val> for Expr {
     fn eval(&self, env: &mut Env<Val>) -> Result<(Val, Option<Ref>), Error> {
+//        let ex = climb(self.clone());
         match self {
-            Expr::Ident(id) => match env.v.get(&id){
-                Some(t) => Ok((t, env.v.get_ref(id))),
+            Expr::Ident(id) => 
+            match env.v.get(&id){
+                Some(t) => Ok((get_val_from_mut(t), env.v.get_ref(&id))),
                 None => Err("Variable not found".to_string()),
             },
-            Expr::Lit(literal) => Ok((Val::Lit(literal.clone()), None)),
+//            Expr::Lit(literal) => Ok((Val::Lit(literal.clone()), Some(env.v.stack_val(Val::Lit(literal.clone()))))),
+            Expr::Lit(l) => Ok((Val::Lit(l.clone()), None)),
             Expr::BinOp(op, left, right) => Ok((op.eval(left.eval(env)?.0, right.eval(env)?.0)?, None)),
             Expr::Par(e) => e.eval(env),
             Expr::IfThenElse(c, t, e) => match c.eval(env)?.0.get_bool()? {
-                true => (*t).eval(env),
+                true => (t).eval(env),
                 false => match e {
                     Some(e) => e.eval(env),
-                    None => Ok((Val::Lit(Literal::Unit), None)),
+                    None => Ok((Val::UnInit, None)),
                 },
             },
-            Expr::Block(bl) => todo!(),
+            Expr::Block(bl) => bl.eval(env),
             Expr::Call(id, params) => {
-                //let mut func = None;
-                /* for currentenv in env.iter_mut() {
-                    if currentenv.1.contains_key(id) && currentenv.1.get(id).is_some(){
-                        func = currentenv.1.get(id).unwrap().clone();
-                    }
-                } */
-                let func = env.f.0.get(id).as_mut();
-                if func.is_none(){
+                if !(env.f.0.contains_key(id)){
                     return Err("This function has not been declared anywhere".to_string());
-                } else if func.unwrap().0.parameters.0.len() != params.0.len() {
-                    return Err("Not the right amount of arguments".to_string())
                 }
-                /* 
-                let mut bl_env: Env = VecDeque::new(); // we need to create a new environment consisting of our arguments for the function
-                let mut newenv: HashMap<String, Option<Literal>> = HashMap::new();
-                let newenv2: HashMap<String, Option<FnDeclaration>> = HashMap::new(); 
-                */
-                if func.as_ref().unwrap().0.id.ends_with('!'){
+                let tempenv = env.clone();
+                let func = tempenv.f.0.get(id).unwrap();
+                if func.0.id == "println!"{
                     let mut arg_vec: Vec<Literal> = Vec::new();
                     for arg in params.0.iter() {
-                        let wtf = &arg.eval(env)?.0.get_string()?;
-                        arg_vec.push(wtf.clone());
+                        arg_vec.push(arg.eval(env)?.0.get_string()?);
                     }
-                    Ok((Val::Lit(func.unwrap().1.unwrap()(arg_vec)), None))
+                    Ok((Val::Lit(func.1.unwrap()(arg_vec)), None))
                 }else{
                     env.v.push_scope();
                     let mut i = 0;
                     for arg in params.0.clone(){
-                        let arg_id = func.as_ref().unwrap().0.parameters.0[i].id.clone();
-                        let arg_val = &arg.eval(env)?.0;
+                        let arg_id = func.0.parameters.0[i].id.clone();
+                        let arg_val = arg.eval(env)?.0;
                         env.v.alloc(&arg_id, arg_val.clone());
                         i= i+1;
                     }
-//                  bl_env.push_front((newenv, newenv2));
-                    let bl: Block = func.unwrap().0.body.clone();
+                    let bl: Block = func.0.body.clone();
                     let retval = bl.eval(env);
                     env.v.pop_scope();
                     retval
                 }
             },
-            Expr::UnOp(uop, e) => todo!(),
+            Expr::UnOp(uop, e) => uop.eval(*e.clone(), env),
         }
     }
 }
@@ -136,27 +134,33 @@ impl Eval<Val> for Block {
                         None => l = Val::UnInit
                     }
                     // the left hand side, for now just accept an ident
-                    env.v.alloc(id, l);
+                    if m.0{
+                        env.v.alloc(id, Val::Mut(Box::new(l)));
+                    }else{
+                        env.v.alloc(id, l);
+                    }
                 },
                 Statement::Assign(id, e) => {
                     // the right hand side, in the "old" env
                     let id_val = id.eval(env)?;
                     let ex = e.eval(env)?;
-                    /* for currentenv in env.iter_mut() {
-                        if currentenv.0.contains_key(&id.get_id()?){
-                            currentenv.0.insert(id.get_id()?, Some(l));
-                            break;
-                        }
-                    } */
-                    let err = env.v.get(&id.to_string());
+                    
+                    /* let err = env.v.get(&id.to_string());
                     if err.is_none(){
                         return Err("That variable has not been declared".to_string());
+                    } */
+                    if let Some(r) = id_val.1 {
+                        env.v.set_ref(r, ex.0)
+                    } else {
+                        return Err("Expected ref in assign".to_string());
                     }
-                    if id_val.1.is_some(){
-                        env.v.set_ref(id_val.1.unwrap(), ex.0);
-                    }else{
-                        return Err("Expected ref in assignment".to_string());
-                    }
+                    /* match id_val.0 {
+                        Val::Mut(_) => env.v.set_ref(id_val.1.unwrap(), Val::Mut(Box::new(ex.0))),
+                        Val::Ref(re) => env.v.set_ref(re, ex.0),
+                        Val::UnInit => env.v.set_ref(id_val.1.unwrap(), ex.0),
+                        Val::Lit(_) => return Err("That variable is immutable and cannot be assigned a value".to_string()),
+                    } */
+                
                 },
                 Statement::Expr(e) => {
                     return_val = e.eval(env)?.0;
@@ -182,19 +186,81 @@ impl Eval<Val> for Block {
 
 impl Eval<Val> for FnDeclaration {
     fn eval(&self, env: &mut Env<Val>) -> Result<(Val, Option<Ref>), Error> {
+        let res = env.f.add_functions_unique(vec![self.clone()]);
         Ok((Val::Lit(Literal::Unit), None))
+    }
+}
+
+impl  UnOp {
+    fn eval(&self, expr: Expr, env: &mut Env<Val>) -> Result<(Val, Option<Ref>), Error> {
+        use Literal::Bool;
+        match self {
+            UnOp::Bang => Ok((Val::Lit(Bool(!expr.eval(env)?.0.get_bool()?)), None) ),
+            UnOp::Ref => {
+                let v = expr.eval(env)?;
+
+                let r = if v.1.is_none(){
+                    let new_ref = env.v.stack_val(v.0.clone());
+                    env.v.set_ref(new_ref, v.0);
+                    new_ref
+                } else {
+                    v.1.unwrap()
+                };
+
+                Ok( (Val::Ref(r.clone()), Some(r)))
+            },
+            UnOp::DeRef => {
+                let v = expr.eval(env)?;
+                let v = v.0;
+                println!("env {:?}", env);
+
+                match v {
+                    Val::Ref(r) => Ok((env.v.de_ref(r.clone()), Some(r))),
+                    Val::Mut(m) => match *m {
+                        Val::Ref(r) => Ok((env.v.de_ref(r.clone()), Some(r))),
+                        _ => Err("Var is not a reference!".to_string())
+                    }
+                    _ => Err("Var is not a reference!".to_string())
+                }
+            },
+            UnOp::Mut => Ok((Val::Mut(Box::new(expr.eval(env)?.0)), None)),
+        }
     }
 }
 
 impl Eval<Val> for Prog {
     fn eval(&self, env: &mut Env<Val>) -> Result<(Val, Option<Ref>), Error> {
-        env.f.add_functions_unique(self.0.clone());
+        //env.f.add_functions_unique(self.0.clone());
+        let mut mainfunc: Option<FnDeclaration> = None;
+        let (print, intrinsic) = vm_println();
+        env.f.0.insert(print.id.clone(), (print, Some(intrinsic)));
         for func in self.0.clone(){
+            if func.id == "main"{
+                if func.parameters.0.is_empty(){
+                    mainfunc = Some(func.clone());
+                }else{
+                    return Err("The main function should not have arguments".to_string())
+                }
+            }
             func.eval(env)?;
         }
+        
+        /* 
+        match mainfunc {
+            Some(f) => (**f).0.eval(env),
+            None => Err("Warning, function 'main' not found")?,
+        }
+        */
+        /* 
         match env.f.0.get("main") {
             Some(_f) => Err("Ok")?,
             None => Err("Warning, function 'main' not found")?,
+        } 
+        */
+        if mainfunc.is_none(){
+            Err("Warning, function 'main' not found".to_string())
+        }else{
+            mainfunc.unwrap().body.eval(env)
         }
 
     }

@@ -20,7 +20,9 @@ impl Parse for Literal {
         Ok(match l {
             syn::Lit::Int(l) => Literal::Int(l.base10_parse().unwrap()),
             syn::Lit::Bool(b) => Literal::Bool(b.value),
+            syn::Lit::Str(s) => Literal::String(s.value()),
             // for now only Int and Bool are covered
+            
             _ => unimplemented!(),
         })
     }
@@ -149,30 +151,38 @@ impl Parse for Expr {
             let e: Expr = content.parse()?;
             Expr::Par(Box::new(e))
         } else if input.peek(syn::Ident) {
-            // we have a left Ident, e.g, "my_best_ident_ever"
-            // this could also be a function call, e.g "myFn(args)"
+            // we have a left Ident, e.g, "my_best_ident_ever" or a Call Expr
+
             let ident: syn::Ident = input.parse()?;
-            if input.peek(syn::token::Paren){
-                let content;
-                let _ = syn::parenthesized!(content in input);
-                let mut args: Vec<Expr> = vec![];
-                while !content.is_empty(){
-                    let param: Expr = content.parse()?;
-                    args.push(param);
-                    if content.peek(syn::token::Comma){
-                        let _comma: syn::token::Comma = content.parse()?;
-                    }
-                }
-                
-                Expr::Call(ident.to_string(), Arguments{0: args})
-            }else{
+            if input.peek(syn::token::Paren) {
+                let arguments = input.parse()?;
+
+                Expr::Call(ident.to_string(), arguments)
+            } else if input.peek(Token![!]) {
+                // Check if Call is for an macro e.g "println!"
+                let _macro: Token![!] = input.parse()?;
+                let arguments = input.parse()?;
+
+                let mut id: String = ident.to_string();
+                id.push('!');
+                Expr::Call(id, arguments)
+            } else {
                 Expr::Ident(ident.to_string())
             }
         } else if input.peek(syn::token::If) {
-            // we have a left conditional, e.g., "if true {1} else {2}" or
-            // if true { 5 }
             let IfThenOptElse(c, t, e) = input.parse()?;
             Expr::IfThenElse(Box::new(c), t, e)
+        } else if input.peek(syn::token::Bang)
+            || input.peek(syn::token::Mut)
+            || input.peek(syn::token::And)
+            || input.peek(Token![*])
+        {
+            let un_op = input.parse()?;
+            let expr = input.parse()?;
+            Expr::UnOp(un_op, expr)
+        } else if input.peek(syn::token::Brace) {
+            let e: Block = input.parse()?;
+            Expr::Block(e)
         } else {
             // else we require a left literal
             let left: Literal = input.parse()?;
@@ -187,6 +197,7 @@ impl Parse for Expr {
             // no op, just return the left, no error
             Err(_) => Ok(left),
         }
+
     }
 }
 
@@ -434,6 +445,7 @@ impl Parse for Type {
                     "i32" => Type::I32,
                     "bool" => Type::Bool,
                     "()" => Type::Unit,
+                    "String" => Type::String,
                     _ =>
                     // to explicitly create an error at the current position
                     {

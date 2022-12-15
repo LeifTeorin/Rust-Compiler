@@ -65,7 +65,7 @@ impl fmt::Display for Literal {
             Literal::Bool(b) => b.to_string(),
             Literal::Int(i) => i.to_string(),
             Literal::Unit => "()".to_string(),
-            Literal::String(s ) => todo!(),
+            Literal::String(s ) => s.to_string(),
         };
         write!(f, "{}", s)
     }
@@ -84,11 +84,11 @@ fn display_literal() {
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            Type::I32 => "i32",
-            Type::Bool => "bool",
-            Type::Unit => "()",
-            Type::String => "String",
-            Type::Ref(e) => "",
+            Type::I32 => "i32".to_string(),
+            Type::Bool => "bool".to_string(),
+            Type::Unit => "()".to_string(),
+            Type::String => "String".to_string(),
+            Type::Ref(e) => format!("&{}", *e.clone()),
         };
         write!(f, "{}", s)
     }
@@ -104,7 +104,15 @@ fn display_type() {
 
 impl fmt::Display for UnOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        let s = match self {
+            UnOp::Mut => format!("mut "),
+            UnOp::Bang => format!("!"),
+            UnOp::Ref => format!("&"),
+            UnOp::DeRef => format!("*")
+        };
+
+        write!(f, "{}", s)
+
     }
 }
 
@@ -133,8 +141,8 @@ impl fmt::Display for Expr {
                 }
                 format!("{}({})", func, params)
             },
-            Expr::Block(bl) => todo!(),
-            Expr::UnOp(uop, e) => todo!(),
+            Expr::Block(bl) => format!("{}", bl),
+            Expr::UnOp(uop, e) => format!("{}{}", uop, e),
         };
         write!(f, "{}", s)
     }
@@ -155,7 +163,7 @@ impl fmt::Display for Block {
 
 impl fmt::Display for Mutable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        write!(f, "mut")
     }
 }
 
@@ -172,31 +180,60 @@ impl fmt::Display for Parameter {
 
 impl fmt::Display for Parameters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        let mut s = String::new();
+        for (idx, param) in self.0.iter().enumerate() {
+            s.push_str(&format!("{}{} ", param, if idx == (self.0.len()-1) {""} else {","}))
+        }
+        write!(f, "{}", s)
+
     }
 }
 
 impl fmt::Display for Arguments {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        let mut s = String::new();
+        for arg in self.0.iter(){
+            s.push_str(&arg.to_string());
+        }
+        write!(f, "{}", s)
     }
 }
 
 impl fmt::Display for FnDeclaration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        let mut s = String::new();
+        let mut params = String::new();
+        let mut iter_param = self.parameters.0.iter().peekable();
+        for param in iter_param.clone(){
+            params.push_str(&param.to_string());
+            if iter_param.peek().is_some() {
+                params.push_str(", ");
+            }
+        }
+        if self.ty.is_some(){
+            s = format!("fn {}({}) -> {} {}", self.id, params, self.ty.as_ref().unwrap(), self.body);
+        }else {
+            s = format!("fn {}({}) -> {}", self.id, params, self.body);
+        };
+        write!(f, "{}", s)
     }
 }
 
 impl fmt::Display for Prog {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        let fns = &self.0;
+        let mut s = String::new();
+        for func in fns.iter(){
+            s.push_str(&format!("{}", func));
+        }
+            
+        write!(f, "{}", s)
     }
 }
 
 impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut s = match self{
+        let s = match self{
             Statement::Let(m, Ex1, typ, Ex2) => {
                 let t = match typ {
                     Some(t) => format!(": {}", t),
@@ -213,20 +250,7 @@ impl fmt::Display for Statement {
             Statement::Expr(ex) => ex.to_string(),
             Statement::While(case, block) => format!("while {} do {}", case, block),
             Statement::Fn(decl) => {
-                let mut params = String::new();
-                let mut iter_param = decl.parameters.0.iter().peekable();
-                for param in iter_param.clone(){
-                    params.push_str(&param.to_string());
-                    if iter_param.peek().is_some() {
-                        params.push_str(", ");
-                    }
-                }
-                if decl.ty.is_some(){
-                    format!("fn {}({}) -> {} {}", decl.id, params, decl.ty.as_ref().unwrap(), decl.body)
-                }else {
-                    format!("fn {}({}) -> {}", decl.id, params, decl.body)
-                }
-                
+                format!("{}", decl)
             },
         };
 
