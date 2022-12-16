@@ -600,4 +600,20 @@ mod tests {
         );
         assert_eq!(v.unwrap().get_int().unwrap(), 1);
     }
+    #[test]
+    fn test_ref_3() {
+        let v = parse_test::<Block, Val>(
+            "
+        {
+            let b;
+            {
+                let a = 1;
+                b = &a;
+            }
+            *b
+        }
+        ",
+        );
+        assert_eq!(v.is_err(), true);
+    }
 }
