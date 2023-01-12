@@ -1,4 +1,4 @@
-use crate::ast::{Block, Expr, FnDeclaration, Prog};
+use crate::ast::{Block, Expr, FnDeclaration, Prog, Statement, Literal};
 use crate::common::Eval;
 use crate::env::{Env, Ref};
 use crate::error::Error;
@@ -26,12 +26,37 @@ pub enum Bc {
 
 impl Eval<Bc> for Expr {
     fn eval(&self, env: &mut Env<Bc>) -> Result<(Bc, Option<Ref>), Error> {
-        todo!("not implemented {:?}", self)
+        match self {
+            Expr::Ident(id) => match env.v.get(id){
+                Some(t) => Ok((t, env.v.get_ref(id))),
+                None => Err("Variable not found".to_string()),
+            },
+            Expr::Lit(l) => todo!(),
+            Expr::BinOp(op, e, e2) => todo!(),
+            Expr::Par(e) => todo!(),
+            Expr::Block(bl) => todo!(),
+            Expr::IfThenElse(e, then_bl, else_bl) => todo!(),
+            Expr::UnOp(uop, e) => todo!(),
+            Expr::Call(id, args) => todo!(),
+        }
+        //todo!("not implemented {:?}", self)
     }
 }
 
 impl Eval<Bc> for Block {
     fn eval(&self, env: &mut Env<Bc>) -> Result<(Bc, Option<Ref>), Error> {
+        env.v.push_scope();
+        let mut return_val: Bc;
+        for be in &self.statements {
+            match be {
+                Statement::Let(m, id, ty, ex) => todo!(),
+                Statement::Assign(left, right) => todo!(),
+                Statement::Expr(e) => todo!(),
+                Statement::While(e, do_block) => todo!(),
+                Statement::Fn(decl) => todo!(),
+            }
+        }
+        env.v.pop_scope();
         todo!("not implemented {:?}", self)
     }
 }
@@ -51,7 +76,7 @@ impl Eval<Bc> for Prog {
 #[cfg(test)]
 mod tests {
     use super::Bc;
-    use crate::ast::{Block, Prog};
+    use crate::ast::{Block, Prog, Literal};
     use crate::common::parse_test;
 
     // Tests for the Bc specific handling
@@ -71,10 +96,24 @@ mod tests {
             a + b
         }",
         );
-        // Suitable assertion
+        assert_eq!(_v.is_ok(), true)
     }
 
     // Come up with your own set of tests for Block
+    #[test]
+    fn test_block_let_2() {
+        let _v = parse_test::<Block, Bc>(
+            "
+        {
+            let a: i32 = 1;
+            let b = a;
+
+            a
+        }",
+        );
+        assert_eq!(_v.is_err(), true);
+        // Suitable assertion
+    }
 
     // Tests for borrow checking of Prog
     #[test]

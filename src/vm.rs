@@ -601,7 +601,7 @@ mod tests {
         assert_eq!(v.unwrap().get_int().unwrap(), 1);
     }
     #[test]
-    fn test_ref_3() {
+    fn test_ref_3_scope() {
         let v = parse_test::<Block, Val>(
             "
         {
@@ -609,8 +609,37 @@ mod tests {
             {
                 let a = 1;
                 b = &a;
+                let c = *b + 2;
             }
             *b
+        }
+        ",
+        );
+        assert_eq!(v.is_err(), true);
+    }
+    #[test]
+    fn test_ref_func() {
+        let v = parse_test::<Block, Val>(
+            "
+        {
+            let b = &3;
+            fn test(a: &i32) {
+                *a = 6;
+            }
+            test(b);
+        }
+        ",
+        );
+        assert_eq!(v.is_err(), true);
+    }
+    #[test]
+    fn test_swap_ownership() { //this test will inevitably fail because this isn't the borrowchecker I just wanted to try it here
+        let v = parse_test::<Block, Val>(
+            "
+        {
+            let a = 1;
+            let b = a;
+            a
         }
         ",
         );
