@@ -527,11 +527,11 @@ mod tests {
     fn test_prog() {
         let v = parse_test::<Prog, Val>(
             "
-    fn main() {
-        let a = 1;
-        a
-    }
-    ",
+            fn main() {
+                let a = 1;
+                a
+            }
+            ",
         );
 
         assert_eq!(v.unwrap().get_int().unwrap(), 1);
@@ -541,14 +541,14 @@ mod tests {
     fn test_local_fn() {
         let v = parse_test::<Prog, Val>(
             "
-    fn main() {
-        fn f(i: i32, j: i32) -> i32 {
-            i + j
-        }
-        let a = f(1, 2);
-        println!(\"a = {} and another a = {}\", a, a);
-    }
-    ",
+            fn main() {
+                fn f(i: i32, j: i32) -> i32 {
+                    i + j
+                }
+                let a = f(1, 2);
+                println!(\"a = {} and another a = {}\", a, a);
+            }
+            ",
         );
 
         assert_eq!(v.unwrap(), Val::Lit(Literal::Unit));
@@ -599,6 +599,33 @@ mod tests {
         ",
         );
         assert_eq!(v.unwrap().get_int().unwrap(), 1);
+    }
+    #[test]
+    fn test_mut() {
+        let v = parse_test::<Block, Val>(
+            "
+        {
+            let a = 1;
+            a = a + 3;
+            a
+        }
+        ",
+        );
+        assert_eq!(v.is_err(), true);
+    }
+    #[test]
+    fn test_mut_ref() {
+        let v = parse_test::<Block, Val>(
+            "
+        {
+            let a = 1;
+            let b = &a;
+            *b = 5;
+            a
+        }
+        ",
+        );
+        assert_eq!(v.is_err(), true);
     }
     #[test]
     fn test_ref_3_scope() {

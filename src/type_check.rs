@@ -539,8 +539,8 @@ mod tests {
         let v = parse_test::<Block, Ty>(
             "
         {
-            let a = 2;
-            let b = false;
+            let mut a = 2;
+            let mut b = false;
             while a > 0 {
                 a = a - 1;
                 b = b + 1;
@@ -799,5 +799,19 @@ mod tests {
         ",
         );
         assert_eq!(v.unwrap(), Ty::Lit(Type::I32));
+    }
+
+    #[test]
+    fn test_mut() {
+        let v = parse_test::<Block, Ty>(
+            "
+        {
+            let a = 1;
+            a = 4;
+            a
+        }
+        ",
+        );
+        assert_eq!(v.is_err(), true);
     }
 }
