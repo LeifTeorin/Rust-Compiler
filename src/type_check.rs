@@ -341,7 +341,7 @@ impl Eval<Ty> for Prog {
             func.eval(env)?;
         }
         match env.f.0.get("main") {
-            Some(_f) => Err("Ok")?,
+            Some(_f) => return Ok((Ty::Lit(Type::Unit), None)),
             None => Err("Warning, function 'main' not found")?,
         }
 
@@ -814,4 +814,23 @@ mod tests {
         );
         assert_eq!(v.is_err(), true);
     }
+    #[test]
+    fn test_prog_unit() {
+    let v = parse_test::<Prog, Ty>(
+        "
+          fn main(){
+            fn f(i: i32, j: i32) -> i32 {
+                i + j
+                
+            }
+            let mut a = f(1, 2);
+            a = true;
+            a = 2
+            // println!(\"a = {} and another a = {}\", a, a);
+            }
+        ",
+    );
+    assert_eq!(v.unwrap(), Ty::Lit(Type::Unit));
+}
+
 }
