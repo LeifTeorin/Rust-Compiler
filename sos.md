@@ -29,7 +29,7 @@ Hint: Use inline latex math for GitLab.
 ### While
 
 ```math
-\frac{\langle E,\; s \rangle \Rightarrow \textbf{true}}{\langle \textbf{while}\; E\; \textbf{do}~ C,\; s \rangle \rightarrow \langle C;\; \textbf{while}\; B\; \textbf{do}~ C,\; s \rangle}
+\frac{\langle E, s \rangle \Rightarrow \textbf{true}} { \langle \textbf{while}\; E\; \textbf{do}~ C,\; s \rangle \Rightarrow \langle C,\; \textbf{while}\; B\; \textbf{do}~ C,\; s \rangle}
 ```
 
 ```math
