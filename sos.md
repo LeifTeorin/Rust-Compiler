@@ -19,17 +19,17 @@ Hint: Use inline latex math for GitLab.
 ### If then else
 
 ```math
-\frac{\langle E,\; s \rangle \Rightarrow \textbf{true}}{\langle \textbf{if}\; E~ \textbf{do} B_1\; \textbf{else}\; B_2,\; s \rangle \rightarrow \langle B_1,\; s \rangle} 
+\frac{\langle E,\; s \rangle \Rightarrow \textbf{true}}{\langle \textbf{if}\; E~ \textbf{do}~ B_1\; \textbf{else}\; B_2,\; s \rangle \rightarrow \langle B_1,\; s \rangle} 
 ```
 
 ```math
-\frac{\langle E,\; s \rangle \Rightarrow \textbf{false}}{\langle \textbf{if}\; E~ \textbf{do} B_1\; \textbf{else}\; B_2,\; s \rangle \rightarrow \langle B_2,\; s \rangle}
+\frac{\langle E,\; s \rangle \Rightarrow \textbf{false}}{\langle \textbf{if}\; E~ \textbf{do}~ B_1\; \textbf{else}\; B_2,\; s \rangle \rightarrow \langle B_2,\; s \rangle}
 ```
 
 ### While
 
 ```math
-\frac{\langle E, s \rangle \Rightarrow \textbf{true}} { \langle \textbf{while}\; E\; \textbf{do}~ C,\; s \rangle \Rightarrow \langle C,\; \textbf{while}\; B\; \textbf{do}~ C,\; s \rangle}
+\frac{\langle E,\; s \rangle \Rightarrow \textbf{true}}{\langle \textbf{while}\; E\; \textbf{do}~ C,\; s \rangle \rightarrow \langle C,\; s \rangle}
 ```
 
 ```math
