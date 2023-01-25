@@ -31,6 +31,7 @@ Hint: Use inline latex math for GitLab.
 ```math
 \frac{\langle E,\; s \rangle \Rightarrow \textbf{true}}{\langle \textbf{while}\; E\; \textbf{do}~ C,\; s \rangle \rightarrow \langle C;\; \textbf{while}\; B\; \textbf{do}~ C,\; s \rangle}
 ```
+
 ```math
 \frac{\langle E,\; s \rangle \Rightarrow \textbf{false}}{\langle \textbf{while}\; E\; \textbf{do}~ C,\; s \rangle \rightarrow s}
 ```
@@ -48,6 +49,21 @@ Hint: Use inline latex math for GitLab.
 ```math
 \frac{\langle E,\; s \rangle \Rightarrow \textbf{true}}{\langle !E,\; s \rangle \Rightarrow \textbf{false}}
 ```
+
 ```math
 \frac{\langle E,\; s \rangle \Rightarrow \textbf{false}}{\langle !E,\; s \rangle \Rightarrow \textbf{true}}
+```
+
+## Functions
+
+### Functiondeclaration
+
+```math
+\frac{}{(fn \: id(p_0, \ldots, p_n)S,s) \Rightarrow s[id(p_0, \ldots, p_n) S/id]}
+```
+
+### Function Call
+
+```math
+\frac{(id, s) \Rightarrow (id(p0, \ldots, pn) S, s) } {(id (a0, \ldots, an) S, s) \Rightarrow (v,s)}
 ```
