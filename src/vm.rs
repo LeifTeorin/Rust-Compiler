@@ -139,7 +139,7 @@ impl Eval<Val> for Block {
                     }
                 },
                 Statement::Assign(id, e) => {
-                    // the right hand side, in the "old" env
+                    
                     let id_val = id.eval(env)?;
                     let ex = e.eval(env)?;
                     
@@ -204,8 +204,6 @@ impl  UnOp {
             UnOp::DeRef => {
                 let v = expr.eval(env)?;
                 let v = v.0;
-                println!("env {:?}", env);
-
                 match v {
                     Val::Ref(r) => Ok((env.v.de_ref(r.clone()), Some(r))),
                     Val::Mut(m) => match *m {
@@ -408,7 +406,7 @@ mod tests {
             "
     {
         let mut a = 2;
-        let mut b = 0;
+        let b = 0;
         let c = &mut b;
         while a > 0 {
             a = a - 1;
@@ -427,10 +425,10 @@ mod tests {
         let v = parse_test::<Block, Val>(
             "
     {
-        let mut a = 2;
-        let mut b = 0;
-        let c = &b;
-        let d = &a;
+        let a = 2;
+        let b = 0;
+        let c = &mut b;
+        let d = &mut a;
         
         while (*d) > 0 {
             *d = (*d) - 1;
@@ -654,19 +652,6 @@ mod tests {
                 *a = 6;
             }
             test(b);
-        }
-        ",
-        );
-        assert_eq!(v.is_err(), true);
-    }
-    #[test]
-    fn test_swap_ownership() { //this test will inevitably fail because this isn't the borrowchecker I just wanted to try it here
-        let v = parse_test::<Block, Val>(
-            "
-        {
-            let a = 1;
-            let b = a;
-            a
         }
         ",
         );

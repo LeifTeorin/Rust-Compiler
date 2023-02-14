@@ -746,7 +746,7 @@ mod tests {
         ",
         );
         println!("v {:?}", v);
-        assert_eq!(v.unwrap_err(), "Ok");
+        assert_eq!(v.is_ok(), true);
     }
 
     #[test]
@@ -763,7 +763,7 @@ mod tests {
         ",
         );
         println!("v {:?}", v);
-        assert_eq!(v.unwrap_err(), "Ok");
+        assert_eq!(v.is_ok(), true);
     }
 
     #[test]
